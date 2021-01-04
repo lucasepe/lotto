@@ -68,6 +68,9 @@ func Difference(a, b []int) []int {
 
 func Count(recs []data.Record, id string, debug bool) map[int]int {
 	res := map[int]int{}
+	for i := 1; i <= 90; i++ {
+		res[i] = 0
+	}
 
 	for _, el := range recs {
 
