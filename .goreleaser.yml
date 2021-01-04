@@ -24,8 +24,9 @@ builds:
       - amd64
 
 archives:
-- format: zip
-- replacements:
+- 
+  format: zip
+  replacements:
     darwin: macOS
   files:
       - LICENSE
