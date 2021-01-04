@@ -16,7 +16,7 @@ const (
 |_______ \____/|__|  |__|  \____/ 
         \/    `
 
-	appSummary = "Create beautiful drawings using a simple scripting language."
+	appSummary = "Individua una triade assente per un intero ciclo esatto."
 )
 
 // rootCmd represents the base command when called without any subcommands

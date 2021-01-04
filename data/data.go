@@ -9,107 +9,94 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-
-	"github.com/olekukonko/tablewriter"
 )
 
+// Record defines a specific draw
 type Record struct {
 	Day     int
-	Numbers map[string][5]int
+	Wheel   string
+	Numbers []int
 }
 
-func List(src []Record, id string) {
-	rows := [][]string{}
+func (r Record) String() string {
+	nums := make([]int, len(r.Numbers))
+	copy(nums, r.Numbers)
+	sort.Ints(nums)
 
-	for _, el := range src {
-		rows = append(rows, asRow(el, id))
+	s := strings.Repeat(".", 15)
+	columns := []string{s, s, s, s, s, s}
+
+	for _, n := range nums {
+		x := (n + 14) - ((n + 14) % 15)
+
+		col := (x - 15) / 15
+		//fmt.Printf("n = %d, col = %d, row := %d\n", v, col, row)
+
+		tmp := strings.Split(columns[col], "")
+
+		steps := 15
+		offset := col * steps
+		for i := offset + 1; i <= offset+steps; i++ {
+			if i == n {
+				if n < 10 {
+					tmp[i-offset-1] = fmt.Sprintf("%d", n)
+				} else {
+					tmp[i-offset-1] = fmt.Sprintf("%d", (n % 10))
+				}
+			}
+		}
+
+		columns[col] = strings.Join(tmp, "")
 	}
 
-	dump(os.Stdout, rows)
+	return fmt.Sprintf("%d %s %v", r.Day, strings.Join(columns, " "), r.Numbers)
 }
 
-func asRow(el Record, id string) []string {
-	for key, vals := range el.Numbers {
-		if strings.EqualFold(key, id) {
-			dst := make([]int, len(vals))
-			copy(dst, []int{vals[0], vals[1], vals[2], vals[3], vals[4]})
-			sort.Ints(dst)
+func Count(recs []Record, id string, debug bool) map[int]int {
+	res := map[int]int{}
+	for i := 1; i <= 90; i++ {
+		res[i] = 0
+	}
 
-			return []string{
-				fmt.Sprintf("%d", el.Day), id,
-				fmt.Sprintf("%d", dst[0]),
-				fmt.Sprintf("%d", dst[1]),
-				fmt.Sprintf("%d", dst[2]),
-				fmt.Sprintf("%d", dst[3]),
-				fmt.Sprintf("%d", dst[4]),
+	if debug {
+		fmt.Fprintln(os.Stderr, "         000000000111111 111122222222223 333333333444444 444455555555556 666666666777777 777788888888889")
+		fmt.Fprintf(os.Stderr, "  %s     123456789012345 678901234567890 123456789012345 678901234567890 123456789012345 678901234567890\n", id)
+	}
+
+	for _, el := range recs {
+		if strings.EqualFold(el.Wheel, id) {
+			if debug {
+				fmt.Fprintf(os.Stderr, "%s\n", el)
+			}
+			for _, n := range el.Numbers {
+				res[n] = res[n] + 1
 			}
 		}
 	}
 
-	return []string{}
+	return res
 }
 
-func dump(wri io.Writer, rows [][]string) {
-	table := tablewriter.NewWriter(wri)
-	table.SetBorder(false)
-	table.SetRowLine(true)
-	//table.SetAutoMergeCells(true)
-	table.SetCaption(true, fmt.Sprintf("Nr. estrazioni: %d", len(rows)))
-	table.AppendBulk(rows)
-	table.Render()
-}
-
-func Find(src []Record, day int) int {
-	for i, el := range src {
-		if el.Day == day {
-			return i
-		}
-	}
-
-	return -1
-}
-
-func Load(filename string) ([]Record, error) {
+func Load(filename string, id string) ([]Record, error) {
 	fd, err := os.Open(filename)
 	if err != nil {
 		return nil, err
 	}
 	defer fd.Close()
 
-	return Parse(fd)
-}
-
-func Parse(r io.Reader) ([]Record, error) {
-	records := []Record{}
-
-	scanner := bufio.NewScanner(r)
-	scanner.Split(bufio.ScanLines)
-	for scanner.Scan() {
-		fields := strings.Fields(scanner.Text())
-
-		el, err := ParseLine(fields)
-		if err != nil {
-			return nil, err
-		}
-
-		if idx := Find(records, el.Day); idx == -1 {
-			records = append(records, Record{
-				Day: el.Day,
-				Numbers: map[string][5]int{
-					el.Id: el.Numbers,
-				},
-			})
-		} else {
-			records[idx].Numbers[el.Id] = el.Numbers
-		}
-
+	records, err := Parse(fd)
+	if err != nil {
+		return nil, err
 	}
 
-	sort.Slice(records, func(i, j int) bool {
-		return records[i].Day > records[j].Day
-	})
+	res := []Record{}
+	for _, rec := range records {
+		if strings.EqualFold(rec.Wheel, id) {
+			res = append(res, rec)
+		}
+	}
 
-	return records, nil
+	return res, nil
 }
 
 func Save(recs []Record, filename string, limit int) error {
@@ -124,36 +111,49 @@ func Save(recs []Record, filename string, limit int) error {
 	wri := csv.NewWriter(file)
 	wri.Comma = '\t'
 	for i, el := range recs {
-		for key, vals := range el.Numbers {
-			wri.Write([]string{
-				fmt.Sprintf("%d", el.Day),
-				key,
-				fmt.Sprintf("%d", vals[0]),
-				fmt.Sprintf("%d", vals[1]),
-				fmt.Sprintf("%d", vals[2]),
-				fmt.Sprintf("%d", vals[3]),
-				fmt.Sprintf("%d", vals[4]),
-			})
-		}
-
-		wri.Flush()
-
-		if i >= limit {
+		if i > limit-1 {
 			break
 		}
+
+		wri.Write([]string{
+			fmt.Sprintf("%d", el.Day),
+			el.Wheel,
+			fmt.Sprintf("%d", el.Numbers[0]),
+			fmt.Sprintf("%d", el.Numbers[1]),
+			fmt.Sprintf("%d", el.Numbers[2]),
+			fmt.Sprintf("%d", el.Numbers[3]),
+			fmt.Sprintf("%d", el.Numbers[4]),
+		})
+
+		wri.Flush()
 	}
 
 	return nil
 }
 
-type Row struct {
-	Day     int
-	Id      string
-	Numbers [5]int
+// Parse a draws data file
+func Parse(r io.Reader) ([]Record, error) {
+	records := []Record{}
+
+	scanner := bufio.NewScanner(r)
+	scanner.Split(bufio.ScanLines)
+	for scanner.Scan() {
+
+		el, err := parseLine(scanner.Text())
+		if err != nil {
+			return nil, err
+		}
+
+		records = append(records, el)
+	}
+
+	return records, nil
 }
 
-func ParseLine(fields []string) (Row, error) {
-	res := Row{}
+func parseLine(line string) (Record, error) {
+	fields := strings.Fields(line)
+
+	res := Record{}
 
 	date := strings.ReplaceAll(fields[0], "/", "")
 	day, err := strconv.Atoi(date)
@@ -187,8 +187,8 @@ func ParseLine(fields []string) (Row, error) {
 	}
 
 	res.Day = day
-	res.Id = fields[1]
-	res.Numbers = [5]int{n1, n2, n3, n4, n5}
+	res.Wheel = fields[1]
+	res.Numbers = []int{n1, n2, n3, n4, n5}
 
 	return res, nil
 }

@@ -7,6 +7,7 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -17,6 +18,10 @@ import (
 
 const (
 	lottomaticaURL = "https://www.lottomaticaitalia.it/STORICO_ESTRAZIONI_LOTTO/storico01-oggi.zip"
+
+	cycle        = 18
+	wheels       = 11
+	defaultLimit = 3 * cycle * wheels
 
 	optLimit = "limite"
 )
@@ -42,12 +47,17 @@ var archiveCmd = &cobra.Command{
 			return err
 		}
 
+		sort.Slice(recs, func(i, j int) bool {
+			x, y := recs[i], recs[j]
+			return (x.Day > y.Day) //&& (x.Wheel < y.Wheel)
+		})
+
 		return data.Save(recs, "archivio.tsv", limit)
 	},
 }
 
 func init() {
-	archiveCmd.Flags().IntP(optLimit, "l", 72, "numero massimo di estrazioni da archiviare")
+	archiveCmd.Flags().IntP(optLimit, "l", defaultLimit, "numero massimo di estrazioni da archiviare")
 
 	rootCmd.AddCommand(archiveCmd)
 }

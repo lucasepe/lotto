@@ -16,10 +16,6 @@ const (
 	optMin = "min"
 	optMax = "max"
 
-	optLo  = "inf"
-	optHi  = "sup"
-	optMid = "mid"
-
 	optDebug = "debug"
 )
 
@@ -35,24 +31,29 @@ var searchCmd = &cobra.Command{
 		id, _ := cmd.Flags().GetString(optID)
 		max, _ := cmd.Flags().GetInt(optMax)
 		min, _ := cmd.Flags().GetInt(optMin)
-		lo, _ := cmd.Flags().GetInt(optLo)
-		hi, _ := cmd.Flags().GetInt(optHi)
-		mid, _ := cmd.Flags().GetInt(optMid)
+
 		debug, _ := cmd.Flags().GetBool(optDebug)
 
-		recs, err := data.Load("archivio.tsv")
+		recs, err := data.Load("archivio.tsv", id)
 		if err != nil {
 			return err
 		}
 
-		if n := len(recs); n < hi {
-			return fmt.Errorf("il numero massimo di estrazioni archiviate è %d", n)
-		}
+		sort.Slice(recs, func(i, j int) bool {
+			x, y := recs[i], recs[j]
+			return (x.Day > y.Day)
+		})
 
-		sample := recs[lo:hi]
+		sample := make([]data.Record, 2*cycle+1)
+		copy(sample, recs)
+
+		sort.Slice(sample, func(i, j int) bool {
+			x, y := sample[i], sample[j]
+			return (x.Day < y.Day)
+		})
 
 		// Contatori sortite nell' intervallo [mid;sup]
-		counters := collect.Count(sample[mid:], id, debug)
+		counters := data.Count(sample[0:cycle], id, debug)
 		// Conserva solo quelli usciti almeno `tot` volte
 		heroes := []int{}
 		for k, v := range counters {
@@ -62,11 +63,15 @@ var searchCmd = &cobra.Command{
 		}
 		sort.Ints(heroes)
 		if debug {
-			fmt.Fprintf(os.Stderr, "numeri sortiti almeno %d volte (intevallo %d - %d): %v\n", max, mid, len(sample), heroes)
+			fmt.Fprintf(os.Stderr, "numeri sortiti almeno %d volte (intevallo %d - %d): %v\n", max, 0, cycle, heroes)
+		}
+
+		if debug {
+			fmt.Fprintln(os.Stderr)
 		}
 
 		// Contatori sortite nell' intervallo [inf;mid]
-		counters = collect.Count(sample[:mid], id, debug)
+		counters = data.Count(sample[cycle:], id, debug)
 		// Conserva solo quelli mai usciti
 		ghosts := []int{}
 		for k, v := range counters {
@@ -76,7 +81,7 @@ var searchCmd = &cobra.Command{
 		}
 		sort.Ints(ghosts)
 		if debug {
-			fmt.Fprintf(os.Stderr, "numeri con sortite minore o uguale a %d (intevallo %d - %d): %v\n", min, lo, mid-1, ghosts)
+			fmt.Fprintf(os.Stderr, "numeri mai sortiti (intevallo %d - %d): %v\n", cycle+1, 2*cycle, ghosts)
 		}
 
 		if len(ghosts) == 0 {
@@ -86,7 +91,7 @@ var searchCmd = &cobra.Command{
 
 		res := collect.Intersection(heroes, ghosts)
 		if debug {
-			fmt.Fprintf(os.Stderr, "intersezione risultati: %v\n", res)
+			fmt.Fprintf(os.Stderr, "\nintersezione risultati: %v\n", res)
 		} else {
 			fmt.Fprintf(os.Stdout, "%v\n", res)
 		}
@@ -96,10 +101,7 @@ var searchCmd = &cobra.Command{
 }
 
 func init() {
-	searchCmd.Flags().BoolP(optDebug, "d", false, "stampa anche le estrazioni esaminate")
-	searchCmd.Flags().IntP(optLo, "i", 0, "limite inferiore intervallo estrazioni")
-	searchCmd.Flags().IntP(optHi, "s", 36, "limite superiore intervallo estrazioni")
-	searchCmd.Flags().IntP(optMid, "m", 19, "limite separazione intervallo estrazioni")
+	searchCmd.Flags().BoolP(optDebug, "d", false, "stampa le estrazioni esaminate")
 	searchCmd.Flags().IntP(optMax, "z", 3, "numero massimo di sortite")
 	searchCmd.Flags().IntP(optMin, "a", 0, "numero minimo di sortite")
 	searchCmd.Flags().StringP(optID, "r", "", "ruota da esaminare")
